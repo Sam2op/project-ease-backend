@@ -22,21 +22,10 @@ const errorMiddleware = require('./middlewares/errorMiddleware');
 const app = express();
 
 // Middleware
-const allowedOrigins = [
-  'https://codesalah.vercel.app',
-  'https://project-ease-frontend-nvnfnjdvj-sam2ops-projects.vercel.app'
-];
-
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  }
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
 }));
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

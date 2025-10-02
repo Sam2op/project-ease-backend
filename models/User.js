@@ -33,13 +33,17 @@ type: String,
 default: ''
 },
 contactNumber: {
-type: String,
-required: function() {
-// only required on creation
-return this.isNew;
+  type: String,
+  required: function(){
+    return this.isNew;
+  },
+  // Comprehensive regex for international phone numbers
+  match: [
+    /^[\+]?[(]?[\+]?\d{1,4}[)]?[-\s\.]?\d{1,4}[-\s\.]?\d{1,9}$/,
+    'Please enter a valid contact number'
+  ]
 },
-match: [/^[+]?[1-9][\d]{0,15}$/, 'Please enter a valid contact number']
-},
+
 githubLink: {
 type: String,
 default: '',
