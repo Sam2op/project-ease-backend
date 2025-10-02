@@ -167,8 +167,8 @@ const requestSchema = new mongoose.Schema({
     },
     method: {
       type: String,
-      enum: ['upi', 'card', 'netbanking', 'wallet'],
-      default: 'upi'
+      enum: ['upi', 'card', 'netbanking', 'wallet', "razorpay"],
+      default: 'razorpay'
     },
     qrCodeData: String,
     upiLink: String,
