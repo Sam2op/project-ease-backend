@@ -19,8 +19,9 @@ exports.createRequest = async (req, res, next) => {
       status: 'pending',
       paymentStatus: 'pending',
       approvalEmailSent: false,
-      paymentOption: 'advance' // Default, can be changed after approval
+      paymentOption: 'advance'
     };
+    
     // Set request type and validate accordingly
     if (projectId) {
       requestData.type = 'existing';
@@ -35,6 +36,9 @@ exports.createRequest = async (req, res, next) => {
       
       requestData.project = projectId;
       requestData.estimatedPrice = project.price;
+      requestData.totalAmount = project.price;
+      requestData.advanceAmount = Math.round(project.price * 0.7);
+      requestData.remainingAmount = project.price - requestData.advanceAmount;
       
     } else if (customProject) {
       requestData.type = 'custom';
@@ -76,12 +80,18 @@ exports.createRequest = async (req, res, next) => {
 
     const request = await Request.create(requestData);
     
-    // Send confirmation email
+    // Send confirmation email with better debugging
     const userEmail = clientType === 'registered' ? req.user?.email : guestInfo.email;
     const userName = clientType === 'registered' ? req.user?.username : guestInfo.name;
     const projectName = projectId ? 
       (await Project.findById(projectId)).name : 
       customProject.name;
+
+    console.log('=== EMAIL DEBUG INFO ===');
+    console.log('User Email:', userEmail);
+    console.log('User Name:', userName);
+    console.log('Project Name:', projectName);
+    console.log('Client Type:', clientType);
 
     if (userEmail) {
       const emailMessage = `
@@ -105,15 +115,22 @@ Best regards,
 ProjectEase Team
       `;
 
+      console.log('=== ATTEMPTING TO SEND EMAIL ===');
+      console.log('Subject:', `Project Request Received - ${projectName}`);
+      
       try {
         await sendEmail({
           email: userEmail,
           subject: `Project Request Received - ${projectName}`,
           message: emailMessage
         });
+        console.log('✅ EMAIL SENT SUCCESSFULLY');
       } catch (err) {
-        console.error('Email sending failed:', err);
+        console.error('❌ EMAIL SENDING FAILED:', err);
+        console.error('Full error details:', err.message);
       }
+    } else {
+      console.log('❌ NO USER EMAIL FOUND - EMAIL NOT SENT');
     }
 
     res.status(201).json({
@@ -121,6 +138,7 @@ ProjectEase Team
       request
     });
   } catch (error) {
+    console.error('❌ CREATE REQUEST ERROR:', error);
     next(error);
   }
 };
@@ -165,6 +183,12 @@ exports.updateRequest = async (req, res, next) => {
   try {
     const { status, adminNotes, actualPrice, currentModule, githubLink } = req.body;
     
+    console.log('=== UPDATE REQUEST DEBUG ===');
+    console.log('Request ID:', req.params.id);
+    console.log('New Status:', status);
+    console.log('Admin Notes:', adminNotes);
+    console.log('Actual Price:', actualPrice);
+    
     const request = await Request.findById(req.params.id)
       .populate('user', 'username email')
       .populate('project', 'name');
@@ -176,22 +200,37 @@ exports.updateRequest = async (req, res, next) => {
       });
     }
 
+    console.log('Found Request:', {
+      id: request._id,
+      currentStatus: request.status,
+      approvalEmailSent: request.approvalEmailSent,
+      userEmail: request.user?.email,
+      guestEmail: request.guestInfo?.email
+    });
+
     const oldStatus = request.status;
     
     // Update request fields
     if (status) request.status = status;
     if (adminNotes) request.adminNotes = adminNotes;
-    if (actualPrice) {
-      request.actualPrice = actualPrice;
-      // Calculate payment amounts based on selected option
-      if (request.paymentOption === 'advance') {
-        request.advanceAmount = Math.round(actualPrice * 0.7);
-        request.remainingAmount = actualPrice - request.advanceAmount;
-      } else {
-        request.advanceAmount = actualPrice;
-        request.remainingAmount = 0;
-      }
-    }
+if (actualPrice) {
+  request.actualPrice = actualPrice;
+  request.totalAmount = actualPrice; // Make sure totalAmount is set
+  
+  if (request.paymentOption === 'advance') {
+    request.advanceAmount = Math.round(actualPrice * 0.7);
+    request.remainingAmount = actualPrice - request.advanceAmount;
+  } else {
+    request.advanceAmount = actualPrice;
+    request.remainingAmount = 0;
+  }
+    console.log('Updated payment amounts:', {
+    actualPrice: request.actualPrice,
+    totalAmount: request.totalAmount,
+    advanceAmount: request.advanceAmount,
+    remainingAmount: request.remainingAmount
+  });
+}
     if (currentModule) request.currentModule = currentModule;
     if (githubLink) request.githubLink = githubLink;
 
@@ -207,11 +246,16 @@ exports.updateRequest = async (req, res, next) => {
 
     await request.save();
 
+    console.log('=== EMAIL DECISION LOGIC ===');
+    console.log('Status changed from', oldStatus, 'to', status);
+    console.log('Approval email sent?', request.approvalEmailSent);
+
     // Send appropriate email based on status change
     let emailSubject, emailMessage;
     
     if (status === 'approved' && !request.approvalEmailSent) {
-      // First time approval - send approval email
+      console.log('🎯 SENDING APPROVAL EMAIL');
+      
       emailSubject = `🎉 Your Project "${request.project?.name || request.customProject?.name}" has been Approved!`;
       emailMessage = `
 Hi ${request.user?.username || request.guestInfo?.name},
@@ -237,7 +281,8 @@ ProjectEase Team
       await request.save();
       
     } else if (status && status !== oldStatus && request.approvalEmailSent) {
-      // Subsequent updates - send update email
+      console.log('🎯 SENDING UPDATE EMAIL');
+      
       emailSubject = `📢 Update - ${request.project?.name || request.customProject?.name}`;
       emailMessage = `
 Hi ${request.user?.username || request.guestInfo?.name},
@@ -258,7 +303,8 @@ Best regards,
 ProjectEase Team
       `;
     } else if (adminNotes && !status) {
-      // Just admin notes update
+      console.log('🎯 SENDING NOTES UPDATE EMAIL');
+      
       emailSubject = `📝 Update - ${request.project?.name || request.customProject?.name}`;
       emailMessage = `
 Hi ${request.user?.username || request.guestInfo?.name},
@@ -279,6 +325,11 @@ ProjectEase Team
     // Send email if we have a message
     if (emailMessage) {
       const userEmail = request.user?.email || request.guestInfo?.email;
+      
+      console.log('=== SENDING UPDATE EMAIL ===');
+      console.log('Email to:', userEmail);
+      console.log('Subject:', emailSubject);
+      
       if (userEmail) {
         try {
           await sendEmail({
@@ -286,10 +337,16 @@ ProjectEase Team
             subject: emailSubject,
             message: emailMessage
           });
+          console.log('✅ UPDATE EMAIL SENT SUCCESSFULLY');
         } catch (err) {
-          console.error('Email sending failed:', err);
+          console.error('❌ UPDATE EMAIL SENDING FAILED:', err);
+          console.error('Full error details:', err.message);
         }
+      } else {
+        console.log('❌ NO USER EMAIL FOUND FOR UPDATE EMAIL');
       }
+    } else {
+      console.log('ℹ️ NO EMAIL MESSAGE TO SEND');
     }
 
     res.status(200).json({
@@ -297,6 +354,7 @@ ProjectEase Team
       request
     });
   } catch (error) {
+    console.error('❌ UPDATE REQUEST ERROR:', error);
     next(error);
   }
 };
@@ -331,7 +389,6 @@ exports.updatePaymentOption = async (req, res, next) => {
       });
     }
 
-    // Update payment option and recalculate amounts
     request.paymentOption = paymentOption;
     const price = request.actualPrice || request.estimatedPrice;
     
@@ -343,7 +400,44 @@ exports.updatePaymentOption = async (req, res, next) => {
       request.remainingAmount = 0;
     }
 
+    request.totalAmount = price;
     await request.save();
+
+    res.status(200).json({
+      success: true,
+      request
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Get request by ID
+// @route  GET /api/requests/:id
+// @access Private
+exports.getRequestById = async (req, res, next) => {
+  try {
+    const request = await Request.findById(req.params.id)
+      .populate('project')
+      .populate('user', 'username email')
+      .populate('statusHistory.updatedBy', 'username');
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    const isOwner = request.user && request.user._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
 
     res.status(200).json({
       success: true,

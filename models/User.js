@@ -80,7 +80,21 @@ passwordResetExpires: Date,
 createdAt: {
 type: Date,
 default: Date.now
+},
+// Add these fields to your existing User schema
+notificationPreferences: {
+  email: {
+    newProjects: { type: Boolean, default: true },
+    requestUpdates: { type: Boolean, default: true },
+    projectUpdates: { type: Boolean, default: true }
+  },
+  inApp: {
+    newProjects: { type: Boolean, default: true },
+    requestUpdates: { type: Boolean, default: true },
+    projectUpdates: { type: Boolean, default: true }
+  }
 }
+
 }, {
 timestamps: true
 });

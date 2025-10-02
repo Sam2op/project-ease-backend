@@ -5,7 +5,8 @@ const {
   getAllRequests,
   updateRequest,
   getUserRequests,
-  updatePaymentOption
+  updatePaymentOption,
+  getRequestById
 } = require('../controllers/requestController');
 const {
   optionalAuthMiddleware,
@@ -13,17 +14,20 @@ const {
   adminMiddleware
 } = require('../middlewares/authMiddleware');
 
-// submit request (guest or logged-in)
+// Submit request (guest or logged-in)
 router.post('/', optionalAuthMiddleware, createRequest);
 
-// user’s own requests
+// Get user's own requests
 router.get('/my', authMiddleware, getUserRequests);
 
-// admin list & update
+// Get specific request by ID
+router.get('/:id', authMiddleware, getRequestById);
+
+// Admin list & update
 router.get('/', authMiddleware, adminMiddleware, getAllRequests);
 router.put('/:id', authMiddleware, adminMiddleware, updateRequest);
 
+// Update payment option for a request
 router.put('/:id/payment-option', authMiddleware, updatePaymentOption);
-
 
 module.exports = router;

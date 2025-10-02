@@ -1,11 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const {
-  createOrder, verifyPayment
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  handleRazorpayWebhook,
+  getPaymentStatus
 } = require('../controllers/paymentController');
 const { authMiddleware } = require('../middlewares/authMiddleware');
 
-router.post('/create-order', authMiddleware, createOrder);
-router.post('/verify', authMiddleware, verifyPayment);
+// Create Razorpay Order
+router.post('/create-order', authMiddleware, createRazorpayOrder);
+
+// Verify Payment
+router.post('/verify', authMiddleware, verifyRazorpayPayment);
+
+// Razorpay Webhook (no auth needed - called by Razorpay)
+router.post('/webhook', handleRazorpayWebhook);
+
+// Get Payment Status
+router.get('/status/:paymentId', authMiddleware, getPaymentStatus);
 
 module.exports = router;
